@@ -1,0 +1,136 @@
+// src/components/Module.tsx
+
+type ModuleStatus = 'disabled' | 'enabled';
+
+interface ModuleProps {
+  bringupStatus: ModuleStatus;
+  cartographerStatus: ModuleStatus;
+  navigationStatus: ModuleStatus;
+  batteryPercentage?: number; // Optional battery percentage (0-100)
+}
+
+export function Module({ 
+  bringupStatus, 
+  cartographerStatus, 
+  navigationStatus,
+  batteryPercentage 
+}: ModuleProps) {
+  const getBatteryColor = (percentage: number) => {
+    if (percentage >= 75) return 'bg-green-500';
+    if (percentage >= 40) return 'bg-yellow-500';
+    if (percentage >= 20) return 'bg-orange-500';
+    return 'bg-red-500';
+  };
+
+  const getBatteryTextColor = (percentage: number) => {
+    if (percentage >= 75) return 'text-green-700';
+    if (percentage >= 40) return 'text-yellow-700';
+    if (percentage >= 20) return 'text-orange-700';
+    return 'text-red-700';
+  };
+
+  const getBatteryIcon = (percentage: number) => {
+    if (percentage >= 90) return '🔋';
+    if (percentage >= 60) return '🔋';
+    if (percentage >= 30) return '🪫';
+    return '🪫';
+  };
+
+  return (
+    <div className="bg-white rounded-lg p-4 shadow-md border-2 border-black">
+      {/* <h3 className="text-lg font-bold text-gray-800 mb-3">Module</h3> */}     
+      <div className="space-y-4">
+        {/* Bringup Module */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-900">Bringup</span>
+          <span
+            className={[
+              'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
+              bringupStatus === 'enabled'
+                ? 'bg-green-100 text-green-800 border-green-500'
+                : 'bg-gray-100 text-gray-800 border-gray-500',
+            ].join(' ')}
+          >
+            {bringupStatus}
+          </span>
+        </div>
+        
+        {/* Cartographer Module */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-900">Cartographer</span>
+          <span
+            className={[
+              'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
+              cartographerStatus === 'enabled'
+                ? 'bg-green-100 text-green-800 border-green-500'
+                : 'bg-gray-100 text-gray-800 border-gray-500',
+            ].join(' ')}
+          >
+            {cartographerStatus}
+          </span>
+        </div>
+        
+        {/* Navigation Module */}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-900">Navigation</span>
+          <span
+            className={[
+              'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
+              navigationStatus === 'enabled'
+                ? 'bg-green-100 text-green-800 border-green-500'
+                : 'bg-gray-100 text-gray-800 border-gray-500',
+            ].join(' ')}
+          >
+            {navigationStatus}
+          </span>
+        </div>
+      </div>
+
+      {/* Battery Status Section */}
+      <div className="pt-4 border-t-2 border-gray-300">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-slate-900 font-medium">Battery</span>
+          {batteryPercentage !== undefined ? (
+            <span className={`font-bold ${getBatteryTextColor(batteryPercentage)}`}>
+              {batteryPercentage}%
+            </span>
+          ) : (
+            <span className="text-gray-500 font-medium">N/A</span>
+          )}
+        </div>
+        
+        {batteryPercentage !== undefined && (
+          <>
+            {/* Battery Icon */}
+            <div className="flex items-center justify-center mb-2">
+              <span className="text-2xl">{getBatteryIcon(batteryPercentage)}</span>
+            </div>
+            
+            {/* Battery Bar */}
+            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+              <div 
+                className={`h-full rounded-full ${getBatteryColor(batteryPercentage)} transition-all duration-300`}
+                style={{ width: `${Math.max(5, Math.min(100, batteryPercentage))}%` }}
+              />
+            </div>
+            
+            {/* Battery Status Text */}
+            <div className="text-center mt-2">
+              <span className={`text-xs font-medium ${getBatteryTextColor(batteryPercentage)}`}>
+                {batteryPercentage >= 75 ? 'Good' : 
+                 batteryPercentage >= 40 ? 'Fair' : 
+                 batteryPercentage >= 20 ? 'Low' : 'Critical'}
+              </span>
+            </div>
+          </>
+        )}
+        
+        {/* {batteryPercentage === undefined && (
+          <div className="text-center py-3 bg-gray-100 rounded-lg">
+            <span className="text-gray-500 text-sm">Battery data not available</span>
+          </div>
+        )} */}
+      </div>
+    </div>
+  );
+}

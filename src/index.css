@@ -745,7 +745,7 @@
   }
 
   .text-primary-foreground {
-    color: var(--primary-foreground);
+    color: var(--foreground);
   }
 
   .text-secondary-foreground {

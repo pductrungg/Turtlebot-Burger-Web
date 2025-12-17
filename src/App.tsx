@@ -21,13 +21,13 @@ export default function App() {
               value="instruction"
               className="border-2 border-black bg-slate-50 data-[state=active]:bg-slate-800 data-[state=active]:text-white px-8 py-2"
             >
-              instruction
+              Instruction
             </TabsTrigger>
             <TabsTrigger 
               value="spec"
               className="border-2 border-black bg-slate-50 data-[state=active]:bg-slate-800 data-[state=active]:text-white px-8 py-2"
             >
-              spec
+              Spec
             </TabsTrigger>
           </TabsList>
 

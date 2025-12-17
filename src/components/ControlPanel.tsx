@@ -4,37 +4,49 @@ interface ControlPanelProps {
   status: 'inactive' | 'active';
   mode: 'manual driving' | 'navigation';
   slamEnabled: 'yes' | 'no';
-  onStatusChange: (status: 'inactive' | 'active') => void;
   onModeChange: (mode: 'manual driving' | 'navigation') => void;
   onSlamChange: (enabled: 'yes' | 'no') => void;
   onExportMap: () => void;
   onKillProcess: () => void;
+
+  //NEW (for Set button)
+  onSet: () => void;
+  setDisabled?: boolean;
+  setLabel?: string;
+  killLabel?: string;
 }
 
 export function ControlPanel({
   status,
   mode,
   slamEnabled,
-  onStatusChange,
   onModeChange,
   onSlamChange,
   onExportMap,
   onKillProcess,
+  onSet,
+  setDisabled = false,
+  setLabel = 'Set',
+  killLabel = 'Kill Process',
 }: ControlPanelProps) {
+  const statusIsActive = status === 'active';
+
   return (
     <div className="border-2 border-black p-6 bg-slate-50 w-64 shadow-md">
       <div className="space-y-6">
-        {/* Status */}
+        {/* Status (read-only) */}
         <div className="flex items-center justify-between">
           <span className="text-slate-900">Status</span>
-          <select
-            value={status}
-            onChange={(e) => onStatusChange(e.target.value as 'inactive' | 'active')}
-            className="border-2 border-slate-400 bg-white rounded px-2 py-1 text-slate-900"
+          <span
+            className={[
+              'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
+              statusIsActive
+                ? 'bg-green-100 text-green-800 border-green-500'
+                : 'bg-red-100 text-red-800 border-red-500',
+            ].join(' ')}
           >
-            <option value="inactive">inactive</option>
-            <option value="active">active</option>
-          </select>
+            {statusIsActive ? 'active' : 'inactive'}
+          </span>
         </div>
 
         {/* Mode */}
@@ -42,7 +54,9 @@ export function ControlPanel({
           <span className="text-slate-900">Mode</span>
           <select
             value={mode}
-            onChange={(e) => onModeChange(e.target.value as 'manual driving' | 'navigation')}
+            onChange={(e) =>
+              onModeChange(e.target.value as 'manual driving' | 'navigation')
+            }
             className="border-2 border-slate-400 bg-white rounded px-2 py-1 text-slate-900"
           >
             <option value="manual driving">manual driving</option>
@@ -74,14 +88,24 @@ export function ControlPanel({
           </Button>
         </div>
 
-        {/* Kill Process */}
+        {/* Set + Kill Process */}
         <div className="flex items-center justify-between pt-4 border-t-2 border-slate-400">
-          <span className="text-slate-900">Set</span>
+          {/* Set button now wired */}
+          <Button
+            type="button"
+            onClick={onSet}
+            disabled={setDisabled}
+            className="border-2 border-black bg-white hover:bg-slate-800 hover:text-white px-3 py-1 disabled:opacity-50"
+          >
+            {setLabel}
+          </Button>
+
+          {/* Kill process stays exactly the same */}
           <button
             onClick={onKillProcess}
-            className="text-slate-900 underline hover:text-black"
+            className="border-2 rounded-md border-black bg-white hover:bg-slate-800 hover:text-white px-3 py-1 disabled:opacity-50"
           >
-            kill process
+            {killLabel}
           </button>
         </div>
       </div>
