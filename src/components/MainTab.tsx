@@ -6,13 +6,13 @@ import { DirectionalPad } from './DirectionalPad';
 import { SlamMap } from './SlamMap';
 import { Module } from './Module';
 
-type Status = 'inactive' | 'active';
+type Status = 'Inactive' | 'Active';
 type Mode = 'manual driving' | 'navigation';
 type SlamEnabled = 'yes' | 'no';
-type ModuleStatus = 'disabled' | 'enabled';
+type ModuleStatus = 'Disabled' | 'Enabled';
 
 export function MainTab() {
-  const [status, setStatus] = useState<Status>('inactive');
+  const [status, setStatus] = useState<Status>('Inactive');
   const [mode, setMode] = useState<Mode>('manual driving');
   const [slamEnabled, setSlamEnabled] = useState<SlamEnabled>('no');
 
@@ -21,9 +21,9 @@ export function MainTab() {
   const [starting, setStarting] = useState(false);
 
   // Module status states
-  const [bringupStatus, setBringupStatus] = useState<ModuleStatus>('disabled');
-  const [cartographerStatus, setCartographerStatus] = useState<ModuleStatus>('disabled');
-  const [navigationStatus, setNavigationStatus] = useState<ModuleStatus>('disabled');
+  const [bringupStatus, setBringupStatus] = useState<ModuleStatus>('Disabled');
+  const [cartographerStatus, setCartographerStatus] = useState<ModuleStatus>('Disabled');
+  const [navigationStatus, setNavigationStatus] = useState<ModuleStatus>('Disabled');
 
   // Battery state
   const [batteryPercentage, setBatteryPercentage] = useState<number | undefined>(undefined);
@@ -48,13 +48,14 @@ export function MainTab() {
     });
 
     ros.on('connection', () => {
-      lastBatteryUiUpdateMsRef.current = 0;
       console.log('Connected to rosbridge');
-      setStatus('active');
+      setStatus('Active');
 
-      // Subscribe to battery topic when connected
-      // Use `ros` directly here (rosRef.current may not be set yet)
-      if (ros) {
+      // reset throttle on connect
+      lastBatteryUiUpdateMsRef.current = 0;
+
+      // Subscribe to battery topic when connected (use ros directly here)
+      try {
         const batteryTopic = new ROSLIB.Topic({
           ros,
           name: '/battery_state',
@@ -62,20 +63,26 @@ export function MainTab() {
         });
 
         batteryTopic.subscribe((message: any) => {
-          let pct: number | undefined;
+          let percentage: number | undefined;
 
-          if (message.percentage !== undefined) {
-            // handle both 0–1 and 0–100
-            pct = message.percentage <= 1.0
-              ? Math.round(message.percentage * 100)
-              : Math.round(message.percentage);
+          if (message?.percentage !== undefined) {
+            // Handle both 0–1 and 0–100 conventions
+            if (message.percentage <= 1.0) percentage = Math.round(message.percentage * 100);
+            else percentage = Math.round(message.percentage);
+          } else if (message?.voltage !== undefined) {
+            // fallback voltage mapping
+            const voltage = message.voltage;
+            const maxVoltage = 12.6;
+            const minVoltage = 9.9;
+            const clampedVoltage = Math.min(maxVoltage, Math.max(minVoltage, voltage));
+            percentage = Math.round(((clampedVoltage - minVoltage) / (maxVoltage - minVoltage)) * 100);
           }
 
-          if (pct === undefined) return;
+          if (percentage === undefined) return;
 
-          pct = Math.max(0, Math.min(100, Math.trunc(pct)));
+          const pct = Math.max(0, Math.min(100, Math.trunc(percentage)));
 
-          // throttle: update at most once per 3 seconds
+          // throttle: update at most once per 3 seconds          
           const now = Date.now();
           if (now - lastBatteryUiUpdateMsRef.current < 3000) return;
 
@@ -84,27 +91,30 @@ export function MainTab() {
         });
 
         batteryTopicRef.current = batteryTopic;
+        console.log('Subscribed to /battery_state');
+      } catch (error) {
+        console.log('Failed to subscribe /battery_state:', error);
       }
     });
 
     ros.on('error', (error) => {
       console.error('Error connecting to rosbridge:', error);
-      setStatus('inactive');
+      setStatus('Inactive');
       setRobotStarted(false);
       // Reset all modules on error
-      setBringupStatus('disabled');
-      setCartographerStatus('disabled');
-      setNavigationStatus('disabled');
+      setBringupStatus('Disabled');
+      setCartographerStatus('Disabled');
+      setNavigationStatus('Disabled');
     });
 
     ros.on('close', () => {
       console.log('Disconnected from rosbridge');
-      setStatus('inactive');
+      setStatus('Inactive');
       setRobotStarted(false);
-      // Reset all modules on disconnect
-      setBringupStatus('disabled');
-      setCartographerStatus('disabled');
-      setNavigationStatus('disabled');
+      // Reset all modules on disconnect      
+      setBringupStatus('Disabled');
+      setCartographerStatus('Disabled');
+      setNavigationStatus('Disabled');
     });
 
     const cmdVel = new ROSLIB.Topic({
@@ -173,14 +183,14 @@ export function MainTab() {
 
       const markInactiveIfNotOpened = () => {
         if (!opened) {
-          setStatus('inactive');
+          setStatus('Inactive');
           setRobotStarted(false);
         }
       };
 
       ws.onopen = () => {
         opened = true;
-        setStatus('active');
+        setStatus('Active');
         ws.close();
       };
 
@@ -195,7 +205,7 @@ export function MainTab() {
   }, []);
 
   const handleExportMap = () => {
-    if (status !== 'active' || !saveMapSrvRef.current) {
+    if (status !== 'Active' || !saveMapSrvRef.current) {
       alert('Not connected to rosbridge yet.');
       return;
     }
@@ -212,7 +222,7 @@ export function MainTab() {
   };
 
   const handleKillProcess = () => {
-    if (status !== 'active' || !stopRobotSrvRef.current) {
+    if (status !== 'Active' || !stopRobotSrvRef.current) {
       alert('Not connected to rosbridge yet.');
       return;
     }
@@ -225,9 +235,9 @@ export function MainTab() {
       if (res?.success) {
         setRobotStarted(false);
         // Reset all modules to disabled
-        setBringupStatus('disabled');
-        setCartographerStatus('disabled');
-        setNavigationStatus('disabled');
+        setBringupStatus('Disabled');
+        setCartographerStatus('Disabled');
+        setNavigationStatus('Disabled');
         alert('Bringup stopped. You can press Set to start again.');
       } else {
         alert(`Stop failed: ${res?.message ?? '(no message)'}`);
@@ -240,7 +250,7 @@ export function MainTab() {
     new Promise<any>((resolve) => srv.callService({} as any, resolve));
 
   const handleSet = async () => {
-    if (status !== 'active' || !startRobotSrvRef.current) {
+    if (status !== 'Active' || !startRobotSrvRef.current) {
       alert('Not connected to rosbridge yet.');
       return;
     }
@@ -249,9 +259,9 @@ export function MainTab() {
     setRobotStarted(false);
 
     // Reset module statuses
-    setBringupStatus('disabled');
-    setCartographerStatus('disabled');
-    setNavigationStatus('disabled');
+    setBringupStatus('Disabled');
+    setCartographerStatus('Disabled');
+    setNavigationStatus('Disabled');
 
     try {
       // 1) bringup (always required for both manual + navigation)
@@ -261,7 +271,7 @@ export function MainTab() {
         alert(`Bringup failed: ${bringupRes?.message ?? '(no message)'}`);
         return;
       }
-      setBringupStatus('enabled');
+      setBringupStatus('Enabled');
       setRobotStarted(true);
 
       // 2) mode branching
@@ -279,7 +289,7 @@ export function MainTab() {
             alert(`Cartographer failed: ${slamRes?.message ?? '(no message)'}`);
             return;
           }
-          setCartographerStatus('enabled');
+          setCartographerStatus('Enabled');
         }
       } else if (mode === 'navigation') {
         // Start navigation node
@@ -294,7 +304,7 @@ export function MainTab() {
           alert(`Navigation failed: ${navRes?.message ?? '(no message)'}`);
           return;
         }
-        setNavigationStatus('enabled');
+        setNavigationStatus('Enabled');
       }
 
       setStarting(false);
@@ -362,9 +372,11 @@ export function MainTab() {
             onModeChange={setMode}
             onSlamChange={setSlamEnabled}
             onExportMap={handleExportMap}
+            exportDisabled={cartographerStatus !== 'Enabled'}
+            slamDisabled={mode === 'navigation'}
             onKillProcess={handleKillProcess}
             onSet={handleSet}
-            setDisabled={status !== 'active' || starting}
+            setDisabled={status !== 'Active' || starting || bringupStatus === 'Enabled'}
             setLabel={starting ? 'starting...' : 'set'}
           />
 
@@ -376,10 +388,11 @@ export function MainTab() {
             batteryPercentage={batteryPercentage}
           />
 
-          {/* Disable the pad until robotStarted */}
-          <div className={robotStarted ? '' : 'opacity-50 pointer-events-none'}>
-            <DirectionalPad onDirectionClick={handleDirectionClick} />
-          </div>
+          {/* Disable the pad when bringup is disabled */}
+          <DirectionalPad
+            onDirectionClick={handleDirectionClick}
+            disabled={bringupStatus !== 'Enabled'}
+          />
         </div>
 
         <div className="w-2/3 p-4 flex">

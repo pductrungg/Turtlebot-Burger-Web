@@ -1,19 +1,23 @@
 import { Button } from './ui/button';
 
 interface ControlPanelProps {
-  status: 'inactive' | 'active';
+  status: 'Inactive' | 'Active';
   mode: 'manual driving' | 'navigation';
   slamEnabled: 'yes' | 'no';
+
   onModeChange: (mode: 'manual driving' | 'navigation') => void;
   onSlamChange: (enabled: 'yes' | 'no') => void;
+
   onExportMap: () => void;
+  exportDisabled?: boolean;
+
   onKillProcess: () => void;
 
-  //NEW (for Set button)
   onSet: () => void;
   setDisabled?: boolean;
   setLabel?: string;
-  killLabel?: string;
+
+  slamDisabled?: boolean;
 }
 
 export function ControlPanel({
@@ -23,29 +27,25 @@ export function ControlPanel({
   onModeChange,
   onSlamChange,
   onExportMap,
+  exportDisabled = false,
   onKillProcess,
   onSet,
   setDisabled = false,
-  setLabel = 'Set',
-  killLabel = 'Kill Process',
+  // setLabel = 'set',
+  slamDisabled = false,
 }: ControlPanelProps) {
-  const statusIsActive = status === 'active';
-
   return (
     <div className="border-2 border-black p-6 bg-slate-50 w-64 shadow-md">
       <div className="space-y-6">
         {/* Status (read-only) */}
         <div className="flex items-center justify-between">
-          <span className="text-slate-900">Status</span>
+          <span className="font-semibold">Status</span>
           <span
-            className={[
-              'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
-              statusIsActive
-                ? 'bg-green-100 text-green-800 border-green-500'
-                : 'bg-red-100 text-red-800 border-red-500',
-            ].join(' ')}
+            className={`px-2 py-1 border-2 rounded border-black ${
+              status === 'Active' ? '' : 'bg-slate-200'
+            }`}
           >
-            {statusIsActive ? 'active' : 'inactive'}
+            {status}
           </span>
         </div>
 
@@ -59,34 +59,34 @@ export function ControlPanel({
             }
             className="border-2 border-slate-400 bg-white rounded px-2 py-1 text-slate-900"
           >
-            <option value="manual driving">manual driving</option>
-            <option value="navigation">navigation</option>
+            <option value="manual driving">Manual Driving</option>
+            <option value="navigation">Navigation</option>
           </select>
         </div>
 
         {/* SLAM */}
         <div className="flex items-center justify-between">
-          <span className="text-slate-900">SLAM</span>
+          <span className="text-slate-900">SLAM Activate</span>
           <select
             value={slamEnabled}
             onChange={(e) => onSlamChange(e.target.value as 'yes' | 'no')}
-            className="border-2 border-slate-400 bg-white rounded px-2 py-1 text-slate-900"
+            disabled={slamDisabled}
+            className="border-2 border-slate-400 bg-white rounded px-2 py-1 text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100"
           >
-            <option value="yes">yes</option>
-            <option value="no">no</option>
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
           </select>
         </div>
 
-        {/* Export Map Button */}
-        <div className="pt-4">
-          <Button
-            onClick={onExportMap}
-            variant="outline"
-            className="w-full border-2 border-black bg-white hover:bg-slate-800 hover:text-white"
-          >
-            export map
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onExportMap}
+          disabled={exportDisabled}
+          className="w-full border-2 border-black bg-white hover:bg-slate-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Export Map
+        </Button>
 
         {/* Set + Kill Process */}
         <div className="flex items-center justify-between pt-4 border-t-2 border-slate-400">
@@ -95,17 +95,18 @@ export function ControlPanel({
             type="button"
             onClick={onSet}
             disabled={setDisabled}
-            className="border-2 border-black bg-white hover:bg-slate-800 hover:text-white px-3 py-1 disabled:opacity-50"
+            className="border-2 border-black bg-white hover:bg-slate-800 hover:text-white px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {setLabel}
+            Set
           </Button>
 
           {/* Kill process stays exactly the same */}
           <button
+            type="button"
             onClick={onKillProcess}
-            className="border-2 rounded-md border-black bg-white hover:bg-slate-800 hover:text-white px-3 py-1 disabled:opacity-50"
+            className="border-2 rounded-md border-black bg-white hover:bg-slate-800 hover:text-white px-3 py-1"
           >
-            {killLabel}
+            Kill Process
           </button>
         </div>
       </div>

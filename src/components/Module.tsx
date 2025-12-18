@@ -1,6 +1,6 @@
 // src/components/Module.tsx
 
-type ModuleStatus = 'disabled' | 'enabled';
+type ModuleStatus = 'Disabled' | 'Enabled';
 
 interface ModuleProps {
   bringupStatus: ModuleStatus;
@@ -46,7 +46,7 @@ export function Module({
           <span
             className={[
               'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
-              bringupStatus === 'enabled'
+              bringupStatus === 'Enabled'
                 ? 'bg-green-100 text-green-800 border-green-500'
                 : 'bg-gray-100 text-gray-800 border-gray-500',
             ].join(' ')}
@@ -61,7 +61,7 @@ export function Module({
           <span
             className={[
               'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
-              cartographerStatus === 'enabled'
+              cartographerStatus === 'Enabled'
                 ? 'bg-green-100 text-green-800 border-green-500'
                 : 'bg-gray-100 text-gray-800 border-gray-500',
             ].join(' ')}
@@ -76,7 +76,7 @@ export function Module({
           <span
             className={[
               'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
-              navigationStatus === 'enabled'
+              navigationStatus === 'Enabled'
                 ? 'bg-green-100 text-green-800 border-green-500'
                 : 'bg-gray-100 text-gray-800 border-gray-500',
             ].join(' ')}
