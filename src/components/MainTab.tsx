@@ -35,6 +35,7 @@ export function MainTab() {
   const stopRobotSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const startSlamSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const saveMapSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
+  const startNavSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const batteryTopicRef = useRef<ROSLIB.Topic<any> | null>(null);
 
   // Connect to rosbridge when MainTab mounts
@@ -169,6 +170,12 @@ export function MainTab() {
       name: '/save_map',
       serviceType: 'std_srvs/Trigger',
     });    
+    
+    startNavSrvRef.current = new ROSLIB.Service({
+      ros,
+      name: '/start_navigation',
+      serviceType: 'std_srvs/Trigger',
+    });    
 
     rosRef.current = ros;
     cmdVelRef.current = cmdVel;
@@ -280,10 +287,6 @@ export function MainTab() {
     new Promise<any>((resolve) => srv.callService({} as any, resolve));
 
   const handleSet = async () => {
-    if (mode !== 'manual driving') {
-      alert('Set is only configured for: Mode = manual driving');
-      return;
-    }
     if (status !== 'active' || !startRobotSrvRef.current) {
       alert('Not connected to rosbridge yet.');
       return;
@@ -291,14 +294,14 @@ export function MainTab() {
 
     setStarting(true);
     setRobotStarted(false);
-    
+
     // Reset module statuses
     setBringupStatus('disabled');
     setCartographerStatus('disabled');
     setNavigationStatus('disabled');
 
     try {
-      // 1) bringup
+      // 1) bringup (always required for both manual + navigation)
       const bringupRes = await callTrigger(startRobotSrvRef.current);
       if (!bringupRes?.success) {
         setStarting(false);
@@ -308,20 +311,37 @@ export function MainTab() {
       setBringupStatus('enabled');
       setRobotStarted(true);
 
-      // 2) if SLAM yes, start cartographer
-      if (slamEnabled === 'yes') {
-        if (!startSlamSrvRef.current) {
+      // 2) mode branching
+      if (mode === 'manual driving') {
+        // If SLAM yes, start cartographer
+        if (slamEnabled === 'yes') {
+          if (!startSlamSrvRef.current) {
+            setStarting(false);
+            alert('start_slam service not ready.');
+            return;
+          }
+          const slamRes = await callTrigger(startSlamSrvRef.current);
+          if (!slamRes?.success) {
+            setStarting(false);
+            alert(`Cartographer failed: ${slamRes?.message ?? '(no message)'}`);
+            return;
+          }
+          setCartographerStatus('enabled');
+        }
+      } else if (mode === 'navigation') {
+        // Start navigation node
+        if (!startNavSrvRef.current) {
           setStarting(false);
-          alert('start_slam service not ready.');
+          alert('start_navigation service not ready.');
           return;
         }
-        const slamRes = await callTrigger(startSlamSrvRef.current);
-        if (!slamRes?.success) {
+        const navRes = await callTrigger(startNavSrvRef.current);
+        if (!navRes?.success) {
           setStarting(false);
-          alert(`Cartographer failed: ${slamRes?.message ?? '(no message)'}`);
+          alert(`Navigation failed: ${navRes?.message ?? '(no message)'}`);
           return;
         }
-        setCartographerStatus('enabled');
+        setNavigationStatus('enabled');
       }
 
       setStarting(false);
