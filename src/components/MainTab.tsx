@@ -38,6 +38,9 @@ export function MainTab() {
   const startNavSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const batteryTopicRef = useRef<ROSLIB.Topic<any> | null>(null);
 
+  // NEW: throttle battery UI updates (3 seconds)
+  const lastBatteryUiUpdateMsRef = useRef<number>(0);
+
   // Connect to rosbridge when MainTab mounts
   useEffect(() => {
     const ros = new ROSLIB.Ros({
@@ -45,79 +48,42 @@ export function MainTab() {
     });
 
     ros.on('connection', () => {
+      lastBatteryUiUpdateMsRef.current = 0;
       console.log('Connected to rosbridge');
       setStatus('active');
-      
+
       // Subscribe to battery topic when connected
-      if (rosRef.current) {
-        // Try common battery topics for TurtleBot3
-        const batteryTopics = [
-          '/battery_state',
-          '/battery',
-          '/power_supply',
-          '/diagnostics'
-        ];
-        
-        // Try each topic
-        batteryTopics.forEach(topicName => {
-          try {
-            const batteryTopic = new ROSLIB.Topic({
-              ros: rosRef.current!,
-              name: topicName,
-              messageType: 'sensor_msgs/BatteryState', // Common message type
-            });
-            
-            batteryTopic.subscribe((message: any) => {
-              console.log('Battery message received:', message);
-              
-              // Extract battery percentage from different possible message formats
-              let percentage: number | undefined;
-              
-              // Method 1: Direct percentage field (common in BatteryState)
-              if (message.percentage !== undefined) {
-                percentage = Math.round(message.percentage * 100);
-              }
-              // Method 2: Voltage-based calculation (for TurtleBot3)
-              else if (message.voltage !== undefined) {
-                // TurtleBot3 battery: 11.1V nominal, 12.6V full, 9.9V empty
-                const voltage = message.voltage;
-                const maxVoltage = 12.6;
-                const minVoltage = 9.9;
-                const clampedVoltage = Math.min(maxVoltage, Math.max(minVoltage, voltage));
-                percentage = Math.round(((clampedVoltage - minVoltage) / (maxVoltage - minVoltage)) * 100);
-              }
-              // Method 3: From diagnostics message
-              else if (message.status && Array.isArray(message.status)) {
-                const batteryStatus = message.status.find((s: any) => 
-                  s.name?.toLowerCase().includes('battery') || 
-                  s.message?.toLowerCase().includes('battery')
-                );
-                if (batteryStatus && batteryStatus.values) {
-                  const voltageValue = batteryStatus.values.find((v: any) => 
-                    v.key.toLowerCase().includes('voltage')
-                  );
-                  if (voltageValue) {
-                    const voltage = parseFloat(voltageValue.value);
-                    const maxVoltage = 12.6;
-                    const minVoltage = 9.9;
-                    const clampedVoltage = Math.min(maxVoltage, Math.max(minVoltage, voltage));
-                    percentage = Math.round(((clampedVoltage - minVoltage) / (maxVoltage - minVoltage)) * 100);
-                  }
-                }
-              }
-              
-              if (percentage !== undefined) {
-                setBatteryPercentage(percentage);
-              }
-            });
-            
-            batteryTopicRef.current = batteryTopic;
-            console.log(`Subscribed to battery topic: ${topicName}`);
-            return; // Stop after first successful subscription
-          } catch (error) {
-            console.log(`Failed to subscribe to ${topicName}:`, error);
-          }
+      // Use `ros` directly here (rosRef.current may not be set yet)
+      if (ros) {
+        const batteryTopic = new ROSLIB.Topic({
+          ros,
+          name: '/battery_state',
+          messageType: 'sensor_msgs/BatteryState',
         });
+
+        batteryTopic.subscribe((message: any) => {
+          let pct: number | undefined;
+
+          if (message.percentage !== undefined) {
+            // handle both 0–1 and 0–100
+            pct = message.percentage <= 1.0
+              ? Math.round(message.percentage * 100)
+              : Math.round(message.percentage);
+          }
+
+          if (pct === undefined) return;
+
+          pct = Math.max(0, Math.min(100, Math.trunc(pct)));
+
+          // throttle: update at most once per 3 seconds
+          const now = Date.now();
+          if (now - lastBatteryUiUpdateMsRef.current < 3000) return;
+
+          lastBatteryUiUpdateMsRef.current = now;
+          setBatteryPercentage(pct);
+        });
+
+        batteryTopicRef.current = batteryTopic;
       }
     });
 
@@ -157,8 +123,8 @@ export function MainTab() {
       ros,
       name: '/stop_robot',
       serviceType: 'std_srvs/Trigger',
-    }); 
-    
+    });
+
     startSlamSrvRef.current = new ROSLIB.Service({
       ros,
       name: '/start_slam',
@@ -169,13 +135,13 @@ export function MainTab() {
       ros,
       name: '/save_map',
       serviceType: 'std_srvs/Trigger',
-    });    
-    
+    });
+
     startNavSrvRef.current = new ROSLIB.Service({
       ros,
       name: '/start_navigation',
       serviceType: 'std_srvs/Trigger',
-    });    
+    });
 
     rosRef.current = ros;
     cmdVelRef.current = cmdVel;
@@ -194,21 +160,8 @@ export function MainTab() {
         ros.close();
       } catch {}
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Simulated battery updates for testing (if no ROS data available)
-  useEffect(() => {
-    if (status === 'active' && batteryPercentage === undefined) {
-      // Simulate battery data for testing
-      const interval = setInterval(() => {
-        // Simulate random battery drain for demo
-        const simulatedBattery = Math.max(20, Math.floor(Math.random() * 100));
-        setBatteryPercentage(simulatedBattery);
-      }, 10000); // Update every 10 seconds
-      
-      return () => clearInterval(interval);
-    }
-  }, [status, batteryPercentage]);
 
   // Optional: periodic "status check" (ping-like) via websocket open/close
   useEffect(() => {
