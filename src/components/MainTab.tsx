@@ -363,7 +363,7 @@ export function MainTab() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-slate-100">
-      <div className="flex-1 flex border-b-2 border-black overflow-hidden">
+      <div className="flex-1 flex border-b-2 border-black overflow-hidden" style={{ justifyContent: 'center' }}>
         <div className="w-1/3 flex flex-col gap-4 p-4">
           <ControlPanel
             status={status}
@@ -395,7 +395,7 @@ export function MainTab() {
           />
         </div>
 
-        <div className="w-2/3 p-4 flex">
+        <div className="w-2/3 p-4 flex" style={{ maxWidth: '1000px' }}>
           <SlamMap ros={rosRef.current} topicName="/map" />
         </div>
       </div>

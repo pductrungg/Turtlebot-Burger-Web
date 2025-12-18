@@ -37,15 +37,15 @@ export function Module({
   };
 
   return (
-    <div className="bg-white rounded-lg p-4 shadow-md border-2 border-black">
+    <div className="bg-white rounded-lg p-6 shadow-md border-2 border-black">
       {/* <h3 className="text-lg font-bold text-gray-800 mb-3">Module</h3> */}     
       <div className="space-y-4">
         {/* Bringup Module */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" style={{marginBottom: '20px'}}>
           <span className="text-slate-900">Bringup</span>
           <span
             className={[
-              'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
+              'min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-medium',
               bringupStatus === 'Enabled'
                 ? 'bg-green-100 text-green-800 border-green-500'
                 : 'bg-gray-100 text-gray-800 border-gray-500',
@@ -56,11 +56,11 @@ export function Module({
         </div>
         
         {/* Cartographer Module */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" style={{marginBottom: '20px'}}>
           <span className="text-slate-900">Cartographer</span>
           <span
             className={[
-              'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
+              'min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-medium',
               cartographerStatus === 'Enabled'
                 ? 'bg-green-100 text-green-800 border-green-500'
                 : 'bg-gray-100 text-gray-800 border-gray-500',
@@ -71,11 +71,11 @@ export function Module({
         </div>
         
         {/* Navigation Module */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" style={{marginBottom: '20px'}}>
           <span className="text-slate-900">Navigation</span>
           <span
             className={[
-              'min-w-[84px] text-center px-3 py-1 rounded border-2 text-sm font-medium',
+              'min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-medium',
               navigationStatus === 'Enabled'
                 ? 'bg-green-100 text-green-800 border-green-500'
                 : 'bg-gray-100 text-gray-800 border-gray-500',
