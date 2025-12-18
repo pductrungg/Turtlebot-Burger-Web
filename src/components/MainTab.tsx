@@ -34,6 +34,7 @@ export function MainTab() {
   const startRobotSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const stopRobotSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const startSlamSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
+  const saveMapSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const batteryTopicRef = useRef<ROSLIB.Topic<any> | null>(null);
 
   // Connect to rosbridge when MainTab mounts
@@ -163,6 +164,12 @@ export function MainTab() {
       serviceType: 'std_srvs/Trigger',
     });
 
+    saveMapSrvRef.current = new ROSLIB.Service({
+      ros,
+      name: '/save_map',
+      serviceType: 'std_srvs/Trigger',
+    });    
+
     rosRef.current = ros;
     cmdVelRef.current = cmdVel;
     startRobotSrvRef.current = startRobotSrv;
@@ -228,8 +235,20 @@ export function MainTab() {
   }, []);
 
   const handleExportMap = () => {
+    if (status !== 'active' || !saveMapSrvRef.current) {
+      alert('Not connected to rosbridge yet.');
+      return;
+    }
+
     console.log('Exporting map...');
-    alert('Map exported successfully (stub – implement later)');
+
+    saveMapSrvRef.current.callService({} as any, (res: any) => {
+      if (res?.success) {
+        alert('✅ Map saved on SBC: ~/map.yaml and ~/map.pgm');
+      } else {
+        alert(`❌ Save map failed: ${res?.message ?? '(no message)'}`);
+      }
+    });
   };
 
   const handleKillProcess = () => {
