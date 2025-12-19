@@ -82,7 +82,7 @@ export function MainTab() {
 
           const pct = Math.max(0, Math.min(100, Math.trunc(percentage)));
 
-          // throttle: update at most once per 3 seconds          
+          // throttle: update at most once per 3 seconds
           const now = Date.now();
           if (now - lastBatteryUiUpdateMsRef.current < 3000) return;
 
@@ -111,7 +111,7 @@ export function MainTab() {
       console.log('Disconnected from rosbridge');
       setStatus('Inactive');
       setRobotStarted(false);
-      // Reset all modules on disconnect      
+      // Reset all modules on disconnect
       setBringupStatus('Disabled');
       setCartographerStatus('Disabled');
       setNavigationStatus('Disabled');
@@ -389,14 +389,15 @@ export function MainTab() {
           />
 
           {/* Disable the pad when bringup is disabled */}
-          <DirectionalPad
-            onDirectionClick={handleDirectionClick}
-            disabled={bringupStatus !== 'Enabled'}
-          />
+          <DirectionalPad onDirectionClick={handleDirectionClick} disabled={bringupStatus !== 'Enabled'} />
         </div>
 
-        <div className="w-2/3 p-4 flex" style={{ maxWidth: '1000px' }}>
-          <SlamMap ros={rosRef.current} topicName="/map" />
+        <div className="w-2/3 p-4 flex" style={{ maxWidth: '1000px', maxHeight: '1000px' }}>
+          <SlamMap
+            ros={rosRef.current}
+            topicName="/map"
+            navigationEnabled={navigationStatus === 'Enabled'}
+          />
         </div>
       </div>
 

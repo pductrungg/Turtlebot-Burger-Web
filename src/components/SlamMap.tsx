@@ -4,6 +4,12 @@ import * as ROSLIB from 'roslib';
 type Props = {
   ros: ROSLIB.Ros | null;
   topicName?: string; // default: /map
+
+  // When true, allow "RViz-like" interactions:
+  // - Set initial pose (publish /initialpose)
+  // - Set goal (publish /goal_pose)
+  // This is ONLY used for Navigation mode, and does not affect the existing SLAM drawing logic.
+  navigationEnabled?: boolean;
 };
 
 type OccupancyGridMsg = {
@@ -75,7 +81,12 @@ function yawFromQuat(q: Quat): number {
   return Math.atan2(siny, cosy);
 }
 
-export function SlamMap({ ros, topicName = '/map' }: Props) {
+function quatFromYaw(yaw: number): Quat {
+  const h = yaw / 2;
+  return { x: 0, y: 0, z: Math.sin(h), w: Math.cos(h) };
+}
+
+export function SlamMap({ ros, topicName = '/map', navigationEnabled = false }: Props) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -120,6 +131,159 @@ export function SlamMap({ ros, topicName = '/map' }: Props) {
 
   // limit how often we update React state for pose label
   const lastPoseStateUpdateMsRef = useRef(0);
+
+  // ---------------- Navigation interaction (click + drag like RViz) ----------------
+  type NavTool = 'pose' | 'goal';
+  const [navTool, setNavTool] = useState<NavTool>('goal');
+
+  // drag state: start + current (world coords)
+  const dragRef = useRef<{
+    active: boolean;
+    startWorld: { x: number; y: number } | null;
+    currWorld: { x: number; y: number } | null;
+  }>({ active: false, startWorld: null, currWorld: null });
+
+  const initialPoseTopic = useMemo(() => {
+    if (!ros || !navigationEnabled) return null;
+    return new ROSLIB.Topic({
+      ros,
+      name: '/initialpose',
+      messageType: 'geometry_msgs/PoseWithCovarianceStamped',
+      queue_size: 1,
+    });
+  }, [ros, navigationEnabled]);
+
+  const goalPoseTopic = useMemo(() => {
+    if (!ros || !navigationEnabled) return null;
+    return new ROSLIB.Topic({
+      ros,
+      name: '/goal_pose',
+      messageType: 'geometry_msgs/PoseStamped',
+      queue_size: 1,
+    });
+  }, [ros, navigationEnabled]);
+
+  const pixelToWorld = (clientX: number, clientY: number): { x: number; y: number } | null => {
+    const canvas = canvasRef.current;
+    const meta = mapMetaRef.current;
+    const wh = lastWHRef.current;
+    const dp = drawParamsRef.current;
+    if (!canvas || !meta || !wh || !dp) return null;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    // outside canvas
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+
+    // canvas -> map image px
+    const px = (x - dp.offsetX) / dp.scale;
+    const py = (y - dp.offsetY) / dp.scale;
+
+    // outside drawn map area
+    if (px < 0 || py < 0 || px >= wh.w || py >= wh.h) return null;
+
+    // undo the vertical flip done when building occupancy ImageData
+    const gx = px;
+    const gy = (wh.h - 1) - py;
+
+    const wx = meta.originX + gx * meta.resolution;
+    const wy = meta.originY + gy * meta.resolution;
+
+    if (!Number.isFinite(wx) || !Number.isFinite(wy)) return null;
+    return { x: wx, y: wy };
+  };
+
+  const publishInitialPose = (x: number, y: number, yaw: number) => {
+    if (!initialPoseTopic) return;
+
+    const q = quatFromYaw(yaw);
+
+    // Basic covariance (reasonable defaults). Nav2/AMCL mainly needs the pose + some uncertainty.
+    const cov = new Array(36).fill(0);
+    cov[0] = 0.25; // x
+    cov[7] = 0.25; // y
+    cov[35] = 0.0685; // yaw
+
+    initialPoseTopic.publish({
+      header: { frame_id: 'map', stamp: { secs: 0, nsecs: 0 } },
+      pose: {
+        pose: {
+          position: { x, y, z: 0 },
+          orientation: q,
+        },
+        covariance: cov,
+      },
+    } as any);
+  };
+
+  const publishGoalPose = (x: number, y: number, yaw: number) => {
+    if (!goalPoseTopic) return;
+
+    const q = quatFromYaw(yaw);
+
+    goalPoseTopic.publish({
+      header: { frame_id: 'map', stamp: { secs: 0, nsecs: 0 } },
+      pose: {
+        position: { x, y, z: 0 },
+        orientation: q,
+      },
+    } as any);
+  };
+
+  const onPointerDown = (e: any) => {
+    if (!navigationEnabled) return;
+
+    const w = pixelToWorld(e.clientX, e.clientY);
+    if (!w) return;
+
+    dragRef.current = { active: true, startWorld: w, currWorld: w };
+
+    // capture so pointerup works even if cursor leaves canvas
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+
+    scheduleDraw();
+  };
+
+  const onPointerMove = (e: any) => {
+    if (!navigationEnabled) return;
+    if (!dragRef.current.active) return;
+
+    const w = pixelToWorld(e.clientX, e.clientY);
+    if (!w) return;
+
+    dragRef.current.currWorld = w;
+    scheduleDraw();
+  };
+
+  const onPointerUp = (e: any) => {
+    if (!navigationEnabled) return;
+    if (!dragRef.current.active) return;
+
+    const start = dragRef.current.startWorld;
+    const end = dragRef.current.currWorld;
+
+    dragRef.current.active = false;
+
+    if (!start || !end) {
+      scheduleDraw();
+      return;
+    }
+
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+
+    // If user just clicked without dragging, keep yaw = 0
+    const yaw = Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4 ? 0 : Math.atan2(dy, dx);
+
+    if (navTool === 'pose') publishInitialPose(start.x, start.y, yaw);
+    else publishGoalPose(start.x, start.y, yaw);
+
+    scheduleDraw();
+  };
+
+  // ---------------- end nav interaction ----------------
 
   // Resize canvas to fit the right panel
   useEffect(() => {
@@ -380,6 +544,54 @@ export function SlamMap({ ros, topicName = '/map' }: Props) {
     ctx.restore();
   };
 
+  const drawNavDragOverlay = (ctx: CanvasRenderingContext2D) => {
+    if (!navigationEnabled) return;
+    const meta = mapMetaRef.current;
+    const wh = lastWHRef.current;
+    const dp = drawParamsRef.current;
+    if (!meta || !wh || !dp) return;
+
+    const d = dragRef.current;
+    if (!d.active || !d.startWorld || !d.currWorld) return;
+
+    const toCanvas = (w: { x: number; y: number }) => {
+      const gx = (w.x - meta.originX) / meta.resolution;
+      const gy = (w.y - meta.originY) / meta.resolution;
+      const px = gx;
+      const py = (wh.h - 1) - gy;
+      return {
+        x: dp.offsetX + px * dp.scale,
+        y: dp.offsetY + py * dp.scale,
+      };
+    };
+
+    const s = toCanvas(d.startWorld);
+    const c = toCanvas(d.currWorld);
+
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = navTool === 'pose' ? 'rgba(0,128,255,0.9)' : 'rgba(0,200,0,0.9)';
+    ctx.fillStyle = navTool === 'pose' ? 'rgba(0,128,255,0.9)' : 'rgba(0,200,0,0.9)';
+
+    // line
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(c.x, c.y);
+    ctx.stroke();
+
+    // arrow head
+    const ang = Math.atan2(c.y - s.y, c.x - s.x);
+    const ah = 10;
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    ctx.lineTo(c.x - Math.cos(ang - Math.PI / 6) * ah, c.y - Math.sin(ang - Math.PI / 6) * ah);
+    ctx.lineTo(c.x - Math.cos(ang + Math.PI / 6) * ah, c.y - Math.sin(ang + Math.PI / 6) * ah);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  };
+
   const drawToCanvas = () => {
     const canvas = canvasRef.current;
     const wrapper = wrapperRef.current;
@@ -414,6 +626,9 @@ export function SlamMap({ ros, topicName = '/map' }: Props) {
 
     // overlay robot pose (if available)
     drawRobotOverlay(ctx);
+
+    // overlay drag arrow when setting pose/goal
+    drawNavDragOverlay(ctx);
   };
 
   // when pose label updates, also ensure we redraw (safe)
@@ -423,13 +638,71 @@ export function SlamMap({ ros, topicName = '/map' }: Props) {
   }, [robotPose]);
 
   return (
-    <div className="border-2 border-black h-full p-4 bg-slate-50 shadow-md w-full">
-      <div ref={wrapperRef} className="relative h-full border-2 border-slate-400 bg-white overflow-hidden">
+    <div className="border-2 border-black h-full p-4 bg-slate-50 shadow-md w-full" style={{ paddingBottom: navigationEnabled ? '55px' : '41px' }}>
+      <div className="relative flex items-center justify-between mb-2" style={{ paddingBottom: '5px' }}>
+        <div className="text-slate-700 text-sm">
+          {navigationEnabled ? (
+            <span className="font-medium">Navigation map (click + drag to set direction)</span>
+          ) : (
+            <span className="font-medium">SLAM map</span>
+          )}
+        </div>
+
+        {navigationEnabled && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setNavTool('pose')}
+              className={[
+                'px-3 py-1 text-sm border-2 border-black rounded',
+                navTool === 'pose'
+                  ? '!bg-black !text-white'
+                  : 'bg-slate-200 text-black hover:bg-slate-300',
+              ].join(' ')}
+              title="Publish /initialpose (like RViz 2D Pose Estimate)"
+              style={navTool === 'pose' ? { backgroundColor: '#000', color: '#fff' } : undefined}
+              >
+              Set Pose
+            </button>
+            <button
+              type="button"
+              onClick={() => setNavTool('goal')}
+              className={[
+                'px-3 py-1 text-sm border-2 border-black rounded',
+                navTool === 'goal'
+                  ? '!bg-black !text-white'
+                  : 'bg-slate-200 text-black hover:bg-slate-300',
+              ].join(' ')}
+              title="Publish /goal_pose (like RViz Nav2 Goal)"
+              style={navTool === 'goal' ? { backgroundColor: '#000', color: '#fff' } : undefined}
+              >
+              Set Goal
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div
+        ref={wrapperRef}
+        className="relative h-full border-2 border-slate-400 bg-white overflow-hidden"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
         <div className="absolute top-2 left-2 text-slate-500 pointer-events-none text-sm">
           {mapInfo ? `Mapping... (${topicName})  ${mapInfo.w}×${mapInfo.h}` : `Waiting for ${topicName}...`}
           {robotPose ? `   |   robot: (${robotPose.x.toFixed(2)}, ${robotPose.y.toFixed(2)})` : ''}
         </div>
-        <canvas ref={canvasRef} className="w-full h-full" />
+
+        {/* {navigationEnabled && (
+          <div className="absolute bottom-2 left-2 text-slate-600 bg-white/80 border border-slate-300 rounded px-2 py-1 text-xs pointer-events-none">
+            {navTool === 'pose'
+              ? 'Tool: Set Pose — click to place, drag to set heading (publishes /initialpose)'
+              : 'Tool: Set Goal — click to place, drag to set heading (publishes /goal_pose)'}
+          </div>
+        )} */}
+
+        <canvas ref={canvasRef} className="w-full h-full touch-none" />
       </div>
     </div>
   );
