@@ -7,13 +7,18 @@ interface ModuleProps {
   cartographerStatus: ModuleStatus;
   navigationStatus: ModuleStatus;
   batteryPercentage?: number; // Optional battery percentage (0-100)
+
+  linearVelocity?: number;   // cm/s
+  angularVelocity?: number;  // cm/s  
 }
 
 export function Module({ 
-  bringupStatus, 
-  cartographerStatus, 
+  bringupStatus,
+  cartographerStatus,
   navigationStatus,
-  batteryPercentage 
+  batteryPercentage,
+  linearVelocity,
+  angularVelocity,
 }: ModuleProps) {
   const getBatteryColor = (percentage: number) => {
     if (percentage >= 75) return 'bg-green-500';
@@ -44,12 +49,13 @@ export function Module({
         <div className="flex items-center justify-between" style={{marginBottom: '20px'}}>
           <span className="text-slate-900">Bringup</span>
           <span
-            className={[
-              'min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-medium',
-              bringupStatus === 'Enabled'
-                ? 'bg-green-100 text-green-800 border-green-500'
-                : 'bg-gray-100 text-gray-800 border-gray-500',
-            ].join(' ')}
+            className="min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-semibold"
+            style={{
+              backgroundColor: bringupStatus === 'Enabled' ? '#16a34a' : '#dc2626', // green-600 / red-600
+              color: '#ffffff',
+              textAlign: 'center',
+              minWidth: '80px',
+            }}
           >
             {bringupStatus}
           </span>
@@ -59,12 +65,13 @@ export function Module({
         <div className="flex items-center justify-between" style={{marginBottom: '20px'}}>
           <span className="text-slate-900">Cartographer</span>
           <span
-            className={[
-              'min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-medium',
-              cartographerStatus === 'Enabled'
-                ? 'bg-green-100 text-green-800 border-green-500'
-                : 'bg-gray-100 text-gray-800 border-gray-500',
-            ].join(' ')}
+            className="min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-semibold"
+            style={{
+              backgroundColor: cartographerStatus === 'Enabled' ? '#16a34a' : '#dc2626', // green-600 / red-600
+              color: '#ffffff',
+              textAlign: 'center',
+              minWidth: '80px',
+            }}
           >
             {cartographerStatus}
           </span>
@@ -74,12 +81,13 @@ export function Module({
         <div className="flex items-center justify-between" style={{marginBottom: '20px'}}>
           <span className="text-slate-900">Navigation</span>
           <span
-            className={[
-              'min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-medium',
-              navigationStatus === 'Enabled'
-                ? 'bg-green-100 text-green-800 border-green-500'
-                : 'bg-gray-100 text-gray-800 border-gray-500',
-            ].join(' ')}
+            className="min-w-[84px] text-center px-3 py-1 rounded border-black border-2 text-sm font-semibold"
+            style={{
+              backgroundColor: navigationStatus === 'Enabled' ? '#16a34a' : '#dc2626', // green-600 / red-600
+              color: '#ffffff',
+              textAlign: 'center',
+              minWidth: '80px',              
+            }}
           >
             {navigationStatus}
           </span>
@@ -102,9 +110,9 @@ export function Module({
         {batteryPercentage !== undefined && (
           <>
             {/* Battery Icon */}
-            <div className="flex items-center justify-center mb-2">
+            {/* <div className="flex items-center justify-center mb-2">
               <span className="text-2xl">{getBatteryIcon(batteryPercentage)}</span>
-            </div>
+            </div> */}
             
             {/* Battery Bar */}
             <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
@@ -115,12 +123,36 @@ export function Module({
             </div>
             
             {/* Battery Status Text */}
-            <div className="text-center mt-2">
+            <div className="flex items-center justify-between mt-2">
               <span className={`text-xs font-medium ${getBatteryTextColor(batteryPercentage)}`}>
                 {batteryPercentage >= 75 ? 'Good' : 
-                 batteryPercentage >= 40 ? 'Fair' : 
-                 batteryPercentage >= 20 ? 'Low' : 'Critical'}
+                batteryPercentage >= 40 ? 'Fair' : 
+                batteryPercentage >= 20 ? 'Low' : 'Critical'}
               </span>
+
+              <span className="text-lg">
+                {getBatteryIcon(batteryPercentage)}
+              </span>
+            </div>
+            {/* Velocity Section */}
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-900 text-sm font-medium">
+                  Linear Velocity
+                </span>
+                <span className="text-sm font-semibold text-slate-700">
+                  {(linearVelocity ?? 0).toFixed(1)} cm/s
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-900 text-sm font-medium">
+                  Angular Velocity
+                </span>
+                <span className="text-sm font-semibold text-slate-700">
+                  {(angularVelocity ?? 0).toFixed(1)} cm/s
+                </span>
+              </div>
             </div>
           </>
         )}

@@ -28,6 +28,10 @@ export function MainTab() {
   // Battery state
   const [batteryPercentage, setBatteryPercentage] = useState<number | undefined>(undefined);
 
+  // Velocity states (cm/s)
+  const [linearVelocity, setLinearVelocity] = useState(0);
+  const [angularVelocity, setAngularVelocity] = useState(0);
+
   // ROS connection + topics/services
   const rosRef = useRef<ROSLIB.Ros | null>(null);
   const cmdVelRef = useRef<ROSLIB.Topic<any> | null>(null);
@@ -37,6 +41,10 @@ export function MainTab() {
   const saveMapSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const startNavSrvRef = useRef<ROSLIB.Service<any, any> | null>(null);
   const batteryTopicRef = useRef<ROSLIB.Topic<any> | null>(null);
+
+  // Track currently active motion key to avoid repeated keydown spam
+  const activeMoveKeyRef = useRef<string | null>(null);
+
 
   // NEW: throttle battery UI updates (3 seconds)
   const lastBatteryUiUpdateMsRef = useRef<number>(0);
@@ -95,6 +103,22 @@ export function MainTab() {
       } catch (error) {
         console.log('Failed to subscribe /battery_state:', error);
       }
+
+        const cmdVelSub = new ROSLIB.Topic({
+          ros,
+          name: '/cmd_vel',
+          messageType: 'geometry_msgs/Twist',
+        });
+
+        cmdVelSub.subscribe((msg: any) => {
+          const lin = Math.abs(msg?.linear?.x ?? 0);
+          const ang = Math.abs(msg?.angular?.z ?? 0);
+
+          // convert m/s → cm/s
+          setLinearVelocity(lin * 100);
+          setAngularVelocity(ang * 100);
+        });
+
     });
 
     ros.on('error', (error) => {
@@ -105,6 +129,8 @@ export function MainTab() {
       setBringupStatus('Disabled');
       setCartographerStatus('Disabled');
       setNavigationStatus('Disabled');
+      setLinearVelocity(0);
+      setAngularVelocity(0);
     });
 
     ros.on('close', () => {
@@ -115,6 +141,8 @@ export function MainTab() {
       setBringupStatus('Disabled');
       setCartographerStatus('Disabled');
       setNavigationStatus('Disabled');
+      setLinearVelocity(0);
+      setAngularVelocity(0);
     });
 
     const cmdVel = new ROSLIB.Topic({
@@ -361,6 +389,89 @@ export function MainTab() {
     cmdVelRef.current.publish(twist as any);
   };
 
+  useEffect(() => {
+    const isTypingInInput = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = (el.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || el.isContentEditable === true;
+    };
+
+    const keyToDirection = (key: string): 'up' | 'down' | 'left' | 'right' | 'stop' | null => {
+      switch (key) {
+        case 'w':
+        case 'W':
+        case 'ArrowUp':
+          return 'up';
+        case 's':
+        case 'S':
+        case 'ArrowDown':
+          return 'down';
+        case 'a':
+        case 'A':
+        case 'ArrowLeft':
+          return 'left';
+        case 'd':
+        case 'D':
+        case 'ArrowRight':
+          return 'right';
+        case ' ':
+        case 'Spacebar': // older browsers
+          return 'stop';
+        default:
+          return null;
+      }
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Don’t steal keys when user is typing in an input box
+      if (isTypingInInput(e.target)) return;
+
+      // If bringup is disabled, behave same as disabled buttons
+      if (bringupStatus !== 'Enabled') return;
+
+      const dir = keyToDirection(e.key);
+      if (!dir) return;
+
+      // Prevent the page from scrolling on Arrow keys/Space
+      e.preventDefault();
+
+      // Avoid spamming publish due to OS key repeat:
+      // only send when the active key changes
+      if (dir !== 'stop') {
+        if (activeMoveKeyRef.current === e.key) return;
+        activeMoveKeyRef.current = e.key;
+      } else {
+        activeMoveKeyRef.current = null;
+      }
+
+      handleDirectionClick(dir);
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (isTypingInInput(e.target)) return;
+
+      if (bringupStatus !== 'Enabled') return;
+
+      const dir = keyToDirection(e.key);
+      if (!dir) return;
+
+      // Stop when releasing the currently active movement key
+      if (activeMoveKeyRef.current === e.key) {
+        activeMoveKeyRef.current = null;
+        handleDirectionClick('stop');
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown, { passive: false });
+    window.addEventListener('keyup', onKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown as any);
+      window.removeEventListener('keyup', onKeyUp as any);
+    };
+  }, [bringupStatus]); // intentionally NOT depending on handleDirectionClick to avoid re-binding every render
+
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-slate-100">
       <div className="flex-1 flex border-b-2 border-black overflow-hidden" style={{ justifyContent: 'center' }}>
@@ -386,6 +497,8 @@ export function MainTab() {
             cartographerStatus={cartographerStatus}
             navigationStatus={navigationStatus}
             batteryPercentage={batteryPercentage}
+            linearVelocity={linearVelocity}
+            angularVelocity={angularVelocity}
           />
 
           {/* Disable the pad when bringup is disabled */}

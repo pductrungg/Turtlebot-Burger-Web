@@ -44,6 +44,10 @@ export function ControlPanel({
             className={`px-2 py-1 border-2 rounded border-black ${
               status === 'Active' ? '' : 'bg-slate-200'
             }`}
+            style={{
+              backgroundColor: status === 'Active' ? '#16a34a' : '#dc2626', // green-600 / red-600
+              color: '#ffffff',              
+            }}
           >
             {status}
           </span>
